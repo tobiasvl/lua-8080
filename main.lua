@@ -37,8 +37,40 @@ repeat
 until not b
 file:close()
 
+-- CP/M API functions:
+-- When 0x0005 is called, print a string to serial output (the terminal).
+function cpm_print()
+    if cpu.registers.c == 9 then
+        -- Print the $-terminated string at the memory location in DE
+        local address = cpu.registers.de
+        local char = string.char(bus[address])
+        while char ~= "$" do
+            io.write(char)
+            address = address + 1
+            char = string.char(bus[address])
+        end
+    elseif cpu.registers.c == 2 or cpu.registers.c == 5 then
+        -- Print the single character in E
+        io.write(string.char(cpu.registers.e))
+    end
+
+    return 0xFF
+end
+
+-- inject "out 1,a" at 0x0000 (signal to stop the test)
+bus[0x0000] = 0xD3;
+bus[0x0001] = 0x01;
+
+-- inject "in a,0" at 0x0005 (signal to output some characters)
+bus[0x0005] = 0xDB;
+bus[0x0006] = 0x00;
+bus[0x0007] = 0xC9;
+
 cpu:init(bus)
 cpu.registers.pc = 0x100
+
+cpu.ports.internal.output[1] = os.exit
+cpu.ports.internal.input[0] = cpm_print
 
 disassembler:disassemble(bus)
 
@@ -65,29 +97,4 @@ while true do
     end
 
     cycles = cycles + cpu:cycle()
-
-    -- CP/M API functions:
-    -- When 0x0005 is called, print a string to serial output (the terminal).
-   if cpu.registers.pc == 5 then
-        cpu.registers.a = 0xFF -- zazu
-        if cpu.registers.c == 9 then
-            -- Print the $-terminated string at the memory location in DE
-            local address = cpu.registers.de
-            local char = string.char(bus[address])
-            while char ~= "$" do
-                io.write(char)
-                address = address + 1
-                char = string.char(bus[address])
-            end
-        elseif cpu.registers.c == 2 or cpu.registers.c == 5 then
-            -- Print the single character in E
-            io.write(string.char(cpu.registers.e))
-        end
-        -- Return to caller immediately
-        cycles = cycles + cpu:execute{instruction = "RET"}
-        -- TODO: Add the actual number of cycles CP/M would execute?
-    elseif cpu.registers.pc == 0 then
-        -- Exit to CP/M
-        os.exit()
-    end
 end
