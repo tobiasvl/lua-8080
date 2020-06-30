@@ -2,8 +2,8 @@ local bit = bit or require "bit32"
 
 local opcodes = {}
 
-opcodes[0xD3] = {instruction = "OUT", IMM = 1}
-opcodes[0xDB] = {instruction = "IN", IMM = 1}
+opcodes[0xD3] = {instruction = "OUT", imm = 1}
+opcodes[0xDB] = {instruction = "IN", imm = 1}
 
 -- http://www.classiccmp.org/dunfield/r/8080.txt
 
