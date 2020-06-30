@@ -198,11 +198,6 @@ function instructions:ACI()
     return 7
 end
 
-function instructions:_SUBTRACT(minuend, subtrahend)
-    subtrahend = bit.band(bit.bnot(subtrahend) + 1, 0xFF)
-    return self:_add(minuend, subtrahend)
-end
-
 function instructions:SUB(op1)
     local cycles, value
 
@@ -219,7 +214,7 @@ function instructions:SUB(op1)
     registers.status.n = bit.band(result, 0x80) == 0x80
     registers.status.z = bit.band(result, 0xFF) == 0
     registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x100) ~= 0x100
+    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x10) ~= 0x10
 
     registers.a = bit.band(result, 0xFF)
 
@@ -243,7 +238,7 @@ function instructions:SBB(op1)
     registers.status.n = bit.band(result, 0x80) == 0x80
     registers.status.z = bit.band(result, 0xFF) == 0
     registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F) - c, 0x100) ~= 0x100
+    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F) - c, 0x10) ~= 0x10
 
     registers.a = bit.band(result, 0xFF)
 
@@ -259,7 +254,7 @@ function instructions:SUI(op1)
     registers.status.n = bit.band(result, 0x80) == 0x80
     registers.status.z = bit.band(result, 0xFF) == 0
     registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x100) ~= 0x100
+    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x10) ~= 0x10
 
     registers.a = bit.band(result, 0xFF)
 
@@ -276,7 +271,7 @@ function instructions:SBI()
     registers.status.n = bit.band(result, 0x80) == 0x80
     registers.status.z = bit.band(result, 0xFF) == 0
     registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F) - c, 0x100) == 0x100
+    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F) - c, 0x10) ~= 0x10
 
     registers.a = bit.band(result, 0xFF)
 
