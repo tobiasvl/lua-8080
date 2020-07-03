@@ -16,7 +16,12 @@ local bit = bit or require "bit32"
 local cpu = require "cpu"
 local bus = require "bus"
 local ram = require "ram"
-local disassembler = require "disassembler"
+
+local profi
+if arg[2] == "profile" or arg[3] == "profile" then
+    profi = require "profi"
+    profi:start()
+end
 
 local cycles = 0
 
@@ -36,6 +41,13 @@ repeat
     address = address + 1
 until not b
 file:close()
+
+local debug_file, disassembler
+if arg[2] == "debug" or arg[3] == "debug" then
+    disassembler = require "disassembler"
+    disassembler:disassemble(bus)
+    debug_file = io.open("debug.log", "w")
+end
 
 -- CP/M API functions:
 -- When 0x0005 is called, print a string to serial output (the terminal).
@@ -69,17 +81,24 @@ bus[0x0007] = 0xC9;
 cpu:init(bus)
 cpu.registers.pc = 0x100
 
-cpu.ports.internal.output[1] = os.exit
+function cpm_exit()
+    if debug_file then debug_file:close() end
+    if profi then
+        profi:stop()
+        profi:writeReport('report.log')
+    end
+    os.exit()
+end
+
+cpu.ports.internal.output[1] = cpm_exit
 cpu.ports.internal.input[0] = cpm_print
 
-disassembler:disassemble(bus)
-
 while true do
-    if arg[2] == "debug" then
+    if debug_file then
         -- Print debug output to terminal. Format inspired by superzazu's emulator,
         -- for easy diffing. https://github.com/superzazu/8080
-        print(
-            string.format("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, CYC: %-6d (%02X %02X %02X %02X) - %s",
+        debug_file:write(
+            string.format("PC: %04X, AF: %04X, BC: %04X, DE: %04X, HL: %04X, SP: %04X, CYC: %-6d (%02X %02X %02X %02X) - %s\n",
                 cpu.registers.pc,
                 cpu.registers.psw,
                 cpu.registers.bc,
