@@ -345,30 +345,27 @@ function instructions:DAD(op1)
 end
 
 function instructions:DAA()
-    local low = bit.band(registers.a, 0x0F)
+    local low = band(registers.a, 0x0F)
+    local corr = 0
 
-    if registers.status.h or low > 9 then
-        low = low + 6
+    if status.h or low > 9 then
+        corr = 6
     end
 
-    registers.status.h = low > 0x0F
+    status.h = low + corr > 0x0F
 
-    registers.a = bit.band(registers.a, 0xF0) + low
-    local hi = bit.band(registers.a, 0xF0)
+    local hi = band(registers.a, 0xF0)
 
-    if registers.status.c or hi > 0x90 then
-        hi = hi + 0x60
+    if status.c or hi > 0x90 or (hi >= 0x90 and low > 9) then
+        corr = corr + 0x60
+        status.c = true
     end
 
-    if hi > 0xF0 then
-        registers.status.c = true
-    end
+    local result = registers.a + corr
 
-    local result = bit.band(bit.band(registers.a, 0x0F) + hi, 0xFF)
-
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.z = result == 0
+    status.n = band(result, 0x80) == 0x80
+    status.p = get_parity(band(result, 0xFF))
+    status.z = band(result, 0xFF) == 0
 
     registers.a = result
 
