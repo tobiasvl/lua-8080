@@ -4,21 +4,23 @@ local opcodes = require(path .. ".opcodes")
 
 local instructions = {}
 
-local cpu, registers
+local cpu, registers, status, bus
+
+local band, bor, bxor, rshift, lshift, bnot = bit.band, bit.bor, bit.bxor, bit.rshift, bit.lshift, bit.bnot
 
 function instructions:init(cpu_, bus_)
     cpu = cpu_
     bus = bus_
     registers = cpu_.registers
+    status = registers.status
     self.opcodes = opcodes
 end
 
-function instructions.get_parity(number)
-    local count = 0
-    for i = 0, 7 do
-        count = count + bit.band(bit.rshift(number, i), 1)
-    end
-    return count % 2 == 0
+local function get_parity(number)
+    local temp = bxor(number, rshift(number, 4))
+    temp = bxor(temp, rshift(temp, 2))
+    temp = bxor(temp, rshift(temp, 1))
+    return band(temp, 1) == 0
 end
 
 function instructions:get_8bit_immediate()
@@ -28,7 +30,7 @@ function instructions:get_8bit_immediate()
 end
 
 function instructions:get_16bit_immediate()
-    local value = bit.bor(bit.lshift(bus[registers.pc + 1], 8), bus[registers.pc])
+    local value = lshift(bus[registers.pc + 1], 8) + bus[registers.pc]
     registers.pc = registers.pc + 2
     return value
 end
@@ -130,13 +132,13 @@ function instructions:ADD(op1)
 
     local result = registers.a + value
 
-    registers.status.c = result > 0xFF
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(registers.a, 0x0F) + bit.band(value, 0x0F) > 0x0F
+    status.c = result > 0xFF
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(registers.a, 0x0F) + band(value, 0x0F) > 0x0F
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return cycles or 4
 end
@@ -151,16 +153,16 @@ function instructions:ADC(op1)
         value = registers[op1]
     end
 
-    local c = registers.status.c and 1 or 0
+    local c = status.c and 1 or 0
     local result = registers.a + value + c
 
-    registers.status.c = result > 0xFF
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(registers.a, 0x0F) + bit.band(value, 0x0F) + c > 0x0F
+    status.c = result > 0xFF
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(registers.a, 0x0F) + band(value, 0x0F) + c > 0x0F
     
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return cycles or 4
 end
@@ -170,13 +172,13 @@ function instructions:ADI()
 
     local result = registers.a + value
 
-    registers.status.c = result > 0xFF
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(registers.a, 0x0F) + bit.band(value, 0x0F) > 0x0F
+    status.c = result > 0xFF
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(registers.a, 0x0F) + band(value, 0x0F) > 0x0F
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 7
 end
@@ -184,16 +186,16 @@ end
 function instructions:ACI()
     local value = self:get_8bit_immediate()
 
-    local c = registers.status.c and 1 or 0
+    local c = status.c and 1 or 0
     local result = registers.a + value + c
 
-    registers.status.c = result > 0xFF
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(registers.a, 0x0F) + bit.band(value, 0x0F) + c > 0x0F
+    status.c = result > 0xFF
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(registers.a, 0x0F) + band(value, 0x0F) + c > 0x0F
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 7
 end
@@ -210,13 +212,13 @@ function instructions:SUB(op1)
 
     local result = registers.a - value
 
-    registers.status.c = bit.band(result, 0x100) == 0x100
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x10) ~= 0x10
+    status.c = band(result, 0x100) == 0x100
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(band(registers.a, 0x0F) - band(value, 0x0F), 0x10) ~= 0x10
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return cycles or 4
 end
@@ -231,16 +233,16 @@ function instructions:SBB(op1)
         value = registers[op1]
     end
 
-    local c = registers.status.c and 1 or 0
+    local c = status.c and 1 or 0
     local result = registers.a - value - c
 
-    registers.status.c = bit.band(result, 0x100) == 0x100
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F) - c, 0x10) ~= 0x10
+    status.c = band(result, 0x100) == 0x100
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(band(registers.a, 0x0F) - band(value, 0x0F) - c, 0x10) ~= 0x10
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return cycles or 4
 end
@@ -250,13 +252,13 @@ function instructions:SUI(op1)
 
     local result = registers.a - value
 
-    registers.status.c = bit.band(result, 0x100) == 0x100
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x10) ~= 0x10
+    status.c = band(result, 0x100) == 0x100
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(band(registers.a, 0x0F) - band(value, 0x0F), 0x10) ~= 0x10
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 7
 end
@@ -264,16 +266,16 @@ end
 function instructions:SBI()
     local value = self:get_8bit_immediate()
 
-    local c = registers.status.c and 1 or 0
+    local c = status.c and 1 or 0
     local result = registers.a - value - c
 
-    registers.status.c = bit.band(result, 0x100) == 0x100
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F) - c, 0x10) ~= 0x10
+    status.c = band(result, 0x100) == 0x100
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(band(registers.a, 0x0F) - band(value, 0x0F) - c, 0x10) ~= 0x10
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 7
 end
@@ -284,18 +286,18 @@ function instructions:INR(op1)
     if op1 == "m" then
         value = bus[registers.hl]
         result = value + 1
-        bus[registers.hl] = bit.band(result, 0xFF)
+        bus[registers.hl] = band(result, 0xFF)
         cycles = 10
     else
         value = registers[op1]
         result = value + 1
-        registers[op1] = bit.band(result, 0xFF)
+        registers[op1] = band(result, 0xFF)
     end
 
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(value, 0x0F) + 1 > 0x0F
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(value, 0x0F) + 1 > 0x0F
 
     return cycles or 5
 end
@@ -306,38 +308,38 @@ function instructions:DCR(op1)
     if op1 == "m" then
         value = bus[registers.hl]
         result = value - 1
-        bus[registers.hl] = bit.band(result, 0xFF)
+        bus[registers.hl] = band(result, 0xFF)
         cycles = 10
     else
         value = registers[op1]
         result = value - 1
-        registers[op1] = bit.band(result, 0xFF)
+        registers[op1] = band(result, 0xFF)
     end
 
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(value, 0x0F) - 1, 0x100) ~= 0x100
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(band(value, 0x0F) - 1, 0x100) ~= 0x100
 
     return cycles or 5
 end
 
 function instructions:INX(op1)
-    registers[op1] = bit.band(registers[op1] + 1, 0xFFFF)
+    registers[op1] = band(registers[op1] + 1, 0xFFFF)
     return 5
 end
 
 function instructions:DCX(op1)
-    registers[op1] = bit.band(registers[op1] - 1, 0xFFFF)
+    registers[op1] = band(registers[op1] - 1, 0xFFFF)
     return 5
 end
 
 function instructions:DAD(op1)
     local result = registers.hl + registers[op1]
 
-    registers.status.c = result > 0xFFFF
+    status.c = result > 0xFFFF
 
-    registers.hl = bit.band(result, 0xFFFF)
+    registers.hl = band(result, 0xFFFF)
 
     return 10
 end
@@ -383,13 +385,13 @@ function instructions:ANA(op1)
         value = registers[op1]
     end
 
-    result = bit.band(registers.a, value)
+    result = band(registers.a, value)
 
-    registers.status.c = false
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.bor(registers.a, value), 0x08) ~= 0
+    status.c = false
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(bor(registers.a, value), 0x08) ~= 0
 
     registers.a = result
 
@@ -400,19 +402,19 @@ function instructions:ORA(op1)
     local cycles, result
 
     if op1 == "m" then
-        result = bit.bor(registers.a, bus[registers.hl])
+        result = bor(registers.a, bus[registers.hl])
         cycles = 7
     else
-        result = bit.bor(registers.a, registers[op1])
+        result = bor(registers.a, registers[op1])
     end
 
-    registers.status.c = false
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = false
+    status.c = false
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = false
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return cycles or 4
 end
@@ -421,62 +423,62 @@ function instructions:XRA(op1)
     local cycles, result
 
     if op1 == "m" then
-        result = bit.bxor(registers.a, bus[registers.hl])
+        result = bxor(registers.a, bus[registers.hl])
         cycles = 7
     else
-        result = bit.bxor(registers.a, registers[op1])
+        result = bxor(registers.a, registers[op1])
     end
 
-    registers.status.c = false
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = false
+    status.c = false
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = false
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return cycles or 4
 end
 
 function instructions:ANI()
     local value = self:get_8bit_immediate()
-    local result = bit.band(registers.a, value)
+    local result = band(registers.a, value)
 
-    registers.status.c = false
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.bor(registers.a, value), 0x08) ~= 0
+    status.c = false
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(bor(registers.a, value), 0x08) ~= 0
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 7
 end
 
 function instructions:ORI()
-    local result = bit.bor(registers.a, self:get_8bit_immediate())
+    local result = bor(registers.a, self:get_8bit_immediate())
 
-    registers.status.c = false
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = false
+    status.c = false
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = false
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 7
 end
 
 function instructions:XRI()
-    local result = bit.bxor(registers.a, self:get_8bit_immediate())
+    local result = bxor(registers.a, self:get_8bit_immediate())
 
-    registers.status.c = false
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = false
+    status.c = false
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = false
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 7
 end
@@ -493,11 +495,11 @@ function instructions:CMP(op1)
 
     local result = registers.a - value
 
-    registers.status.c = bit.band(result, 0x100) == 0x100
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x100) ~= 0x100
+    status.c = band(result, 0x100) == 0x100
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(band(registers.a, 0x0F) - band(value, 0x0F), 0x100) ~= 0x100
 
     return cycles or 4
 
@@ -508,69 +510,69 @@ function instructions:CPI()
 
     local result = registers.a - value
 
-    registers.status.c = bit.band(result, 0x100) == 0x100
-    registers.status.n = bit.band(result, 0x80) == 0x80
-    registers.status.z = bit.band(result, 0xFF) == 0
-    registers.status.p = self.get_parity(bit.band(result, 0xFF))
-    registers.status.h = bit.band(bit.band(registers.a, 0x0F) - bit.band(value, 0x0F), 0x100) ~= 0x100
+    status.c = band(result, 0x100) == 0x100
+    status.n = band(result, 0x80) == 0x80
+    status.z = band(result, 0xFF) == 0
+    status.p = get_parity(band(result, 0xFF))
+    status.h = band(band(registers.a, 0x0F) - band(value, 0x0F), 0x100) ~= 0x100
 
     return 7
 end
 
 function instructions:RLC()
-    local result = bit.lshift(registers.a, 1)
-    result = bit.bor(result, bit.rshift(registers.a, 7))
-    registers.a = bit.band(result, 0xFF)
+    local result = lshift(registers.a, 1)
+    result = bor(result, rshift(registers.a, 7))
+    registers.a = band(result, 0xFF)
 
-    registers.status.c = result > 0xFF
+    status.c = result > 0xFF
 
     return 4
 end
 
 function instructions:RRC()
-    local result = bit.rshift(registers.a, 1)
-    result = bit.bor(result, bit.lshift(registers.a, 7))
+    local result = rshift(registers.a, 1)
+    result = bor(result, lshift(registers.a, 7))
 
-    registers.status.c = bit.band(registers.a, 1) == 1
+    status.c = band(registers.a, 1) == 1
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 4
 end
 
 function instructions:RAL()
-    local result = bit.lshift(registers.a, 1)
-    result = bit.bor(result, registers.status.c and 1 or 0)
-    registers.a = bit.band(result, 0xFF)
+    local result = lshift(registers.a, 1)
+    result = bor(result, status.c and 1 or 0)
+    registers.a = band(result, 0xFF)
 
-    registers.status.c = result > 0xFF
+    status.c = result > 0xFF
 
     return 4
 end
 
 function instructions:RAR()
-    local result = bit.rshift(registers.a, 1)
-    result = bit.bor(result, registers.status.c and 0x80 or 0)
+    local result = rshift(registers.a, 1)
+    result = bor(result, status.c and 0x80 or 0)
 
-    registers.status.c = bit.band(registers.a, 1) == 1
+    status.c = band(registers.a, 1) == 1
 
-    registers.a = bit.band(result, 0xFF)
+    registers.a = band(result, 0xFF)
 
     return 4
 end
 
 function instructions:CMA()
-    registers.a = bit.band(bit.bnot(registers.a), 0xFF)
+    registers.a = band(bnot(registers.a), 0xFF)
     return 4
 end
 
 function instructions:CMC()
-    registers.status.c = not registers.status.c
+    status.c = not status.c
     return 4
 end
 
 function instructions:STC()
-    registers.status.c = true
+    status.c = true
     return 4
 end
 
@@ -580,7 +582,7 @@ function instructions:JMP()
 end
 
 function instructions:JNZ()
-    if not registers.status.z then
+    if not status.z then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -589,7 +591,7 @@ function instructions:JNZ()
 end
 
 function instructions:JZ()
-    if registers.status.z then
+    if status.z then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -598,7 +600,7 @@ function instructions:JZ()
 end
 
 function instructions:JNC()
-    if not registers.status.c then
+    if not status.c then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -607,7 +609,7 @@ function instructions:JNC()
 end
 
 function instructions:JC()
-    if registers.status.c then
+    if status.c then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -616,7 +618,7 @@ function instructions:JC()
 end
 
 function instructions:JPO()
-    if not registers.status.p then
+    if not status.p then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -625,7 +627,7 @@ function instructions:JPO()
 end
 
 function instructions:JPE()
-    if registers.status.p then
+    if status.p then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -634,7 +636,7 @@ function instructions:JPE()
 end
 
 function instructions:JP()
-    if not registers.status.n then
+    if not status.n then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -643,7 +645,7 @@ function instructions:JP()
 end
 
 function instructions:JM()
-    if registers.status.n then
+    if status.n then
         self:JMP()
     else
         registers.pc = registers.pc + 2
@@ -654,8 +656,8 @@ end
 function instructions:CALL()
     local value = self:get_16bit_immediate()
 
-    bus[bit.band(registers.sp - 1, 0xFFFF)] = bit.rshift(registers.pc, 8)
-    bus[bit.band(registers.sp - 2, 0xFFFF)] = bit.band(registers.pc, 0xFF)
+    bus[band(registers.sp - 1, 0xFFFF)] = rshift(registers.pc, 8)
+    bus[band(registers.sp - 2, 0xFFFF)] = band(registers.pc, 0xFF)
     registers.sp = registers.sp - 2
 
     registers.pc = value
@@ -663,7 +665,7 @@ function instructions:CALL()
 end
 
 function instructions:CNZ()
-    if not registers.status.z then
+    if not status.z then
         self:CALL()
         return 17
     else
@@ -673,7 +675,7 @@ function instructions:CNZ()
 end
 
 function instructions:CZ()
-    if registers.status.z then
+    if status.z then
         self:CALL()
         return 17
     else
@@ -683,7 +685,7 @@ function instructions:CZ()
 end
 
 function instructions:CNC()
-    if not registers.status.c then
+    if not status.c then
         self:CALL()
         return 17
     else
@@ -693,7 +695,7 @@ function instructions:CNC()
 end
 
 function instructions:CC()
-    if registers.status.c then
+    if status.c then
         self:CALL()
         return 17
     else
@@ -703,7 +705,7 @@ function instructions:CC()
 end
 
 function instructions:CPO()
-    if not registers.status.p then
+    if not status.p then
         self:CALL()
         return 17
     else
@@ -713,7 +715,7 @@ function instructions:CPO()
 end
 
 function instructions:CPE()
-    if registers.status.p then
+    if status.p then
         self:CALL()
         return 17
     else
@@ -723,7 +725,7 @@ function instructions:CPE()
 end
 
 function instructions:CP()
-    if not registers.status.n then
+    if not status.n then
         self:CALL()
         return 17
     else
@@ -733,7 +735,7 @@ function instructions:CP()
 end
 
 function instructions:CM()
-    if registers.status.n then
+    if status.n then
         self:CALL()
         return 17
     else
@@ -743,13 +745,13 @@ function instructions:CM()
 end
 
 function instructions:RET()
-    registers.pc = bit.bor(bit.lshift(bus[bit.band(registers.sp + 1, 0xFFFF)], 8), bus[registers.sp])
+    registers.pc = bor(lshift(bus[band(registers.sp + 1, 0xFFFF)], 8), bus[registers.sp])
     registers.sp = registers.sp + 2
     return 10
 end
 
 function instructions:RNZ()
-    if not registers.status.z then
+    if not status.z then
         self:RET()
         return 11
     end
@@ -757,7 +759,7 @@ function instructions:RNZ()
 end
 
 function instructions:RZ()
-    if registers.status.z then
+    if status.z then
         self:RET()
         return 11
     end
@@ -765,7 +767,7 @@ function instructions:RZ()
 end
 
 function instructions:RNC()
-    if not registers.status.c then
+    if not status.c then
         self:RET()
         return 11
     end
@@ -773,7 +775,7 @@ function instructions:RNC()
 end
 
 function instructions:RC()
-    if registers.status.c then
+    if status.c then
         self:RET()
         return 11
     end
@@ -781,7 +783,7 @@ function instructions:RC()
 end
 
 function instructions:RPO()
-    if not registers.status.p then
+    if not status.p then
         self:RET()
         return 11
     end
@@ -789,7 +791,7 @@ function instructions:RPO()
 end
 
 function instructions:RPE()
-    if registers.status.p then
+    if status.p then
         self:RET()
         return 11
     end
@@ -797,7 +799,7 @@ function instructions:RPE()
 end
 
 function instructions:RP()
-    if not registers.status.n then
+    if not status.n then
         self:RET()
         return 11
     end
@@ -805,7 +807,7 @@ function instructions:RP()
 end
 
 function instructions:RM()
-    if registers.status.n then
+    if status.n then
         self:RET()
         return 11
     end
@@ -813,8 +815,8 @@ function instructions:RM()
 end
 
 function instructions:RST(op1)
-    bus[bit.band(registers.sp - 1, 0xFFFF)] = bit.rshift(registers.pc, 8)
-    bus[bit.band(registers.sp - 2, 0xFFFF)] = bit.band(registers.pc, 0xFF)
+    bus[band(registers.sp - 1, 0xFFFF)] = rshift(registers.pc, 8)
+    bus[band(registers.sp - 2, 0xFFFF)] = band(registers.pc, 0xFF)
     registers.sp = registers.sp - 2
 
     registers.pc = op1 * 8
@@ -822,7 +824,7 @@ function instructions:RST(op1)
 end
 
 function instructions:PCHL()
-    registers.pc = bit.bor(bit.lshift(registers.h, 8), registers.l)
+    registers.pc = bor(lshift(registers.h, 8), registers.l)
     return 5
 end
 
@@ -835,16 +837,16 @@ function instructions:PUSH(op1)
         rp = registers[op1]
     end
 
-    bus[bit.band(registers.sp - 1, 0xFFFF)] = bit.rshift(rp, 8)
-    bus[bit.band(registers.sp - 2, 0xFFFF)] = bit.band(rp, 0xFF)
+    bus[band(registers.sp - 1, 0xFFFF)] = rshift(rp, 8)
+    bus[band(registers.sp - 2, 0xFFFF)] = band(rp, 0xFF)
     registers.sp = registers.sp - 2
 
     return 11
 end
 
 function instructions:POP(op1)
-    local rp = bit.lshift(bus[registers.sp + 1], 8)
-    rp = bit.bor(rp, bus[registers.sp])
+    local rp = lshift(bus[registers.sp + 1], 8)
+    rp = bor(rp, bus[registers.sp])
     registers.sp = registers.sp + 2
 
     if op1 == "sp" then
