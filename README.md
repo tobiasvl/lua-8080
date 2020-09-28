@@ -30,4 +30,4 @@ Currently, it passes these tests:
 - [x] `8080PRE.COM`: Preliminary test for 8080/8085 CPU Exerciser by Ian Bartholomew and Frank Cringles
 - [x] `8080EXER.COM`: 8080/8085 CPU Exerciser by Ian Bartholomew and Frank Cringles
 - [x] `TST8080.COM`: 8080/8085 CPU Diagnostic, version 1.0, by Microcosm Associates
-- [x] `CPUTEST.COM`: 8080/Z80 CPU Diagnostic II, by SuperSoft Associates (actually not sure if it passes or not)
+- [x] `CPUTEST.COM`: 8080/Z80 CPU Diagnostic II, by SuperSoft Associates
